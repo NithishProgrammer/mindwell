@@ -12,6 +12,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+  <!-- SweetAlert2 library -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     body { font-family: 'Inter', sans-serif; }
     .page { display: none; animation: fadeIn 0.5s ease-in-out; }
@@ -240,7 +242,16 @@
       e.preventDefault();
       const email = document.getElementById('login-email').value;
       const pass = document.getElementById('login-password').value;
-      try { await auth.signInWithEmailAndPassword(email, pass); } catch(err) { alert(err.message); }
+      try { 
+        await auth.signInWithEmailAndPassword(email, pass); 
+      } catch(err) { 
+        Swal.fire({
+          icon: 'error',
+          title: 'Login Failed',
+          text: err.message,
+          confirmButtonText: 'Try Again'
+        });
+      }
     }
 
     async function handleClientSignup(e) {
@@ -264,7 +275,15 @@
         const cred = await auth.signInWithEmailAndPassword(email, pass);
         const doc = await db.collection('therapists').doc(cred.user.uid).get();
         if (!doc.exists) throw new Error('Not a therapist account');
-      } catch(err) { alert(err.message); auth.signOut(); }
+      } catch(err) { 
+        Swal.fire({
+          icon: 'error',
+          title: 'Login Failed',
+          text: err.message,
+          confirmButtonText: 'Try Again'
+        });
+        auth.signOut(); 
+      }
     }
 
     async function handleTherapistSignup(e) {
@@ -292,6 +311,12 @@
         role: 'therapist', 
         createdAt: now,
         verified: false // Default value for verification
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'Registration Successful',
+        text: 'You have been registered as a therapist.',
+        confirmButtonText: 'Continue'
       });
       showPage('page-directory');
     }
@@ -353,7 +378,12 @@
       try {
         const doc = await db.collection('therapists').doc(therapistId).get();
         if (!doc.exists) {
-          alert('Psychologist information not found.');
+          Swal.fire({
+            icon: 'error',
+            title: 'Not Found',
+            text: 'Psychologist information not found.',
+            confirmButtonText: 'OK'
+          });
           return;
         }
         const therapist = doc.data();
@@ -368,7 +398,12 @@
         document.getElementById('psychologist-info').classList.remove('hidden');
       } catch (error) {
         console.error('Error fetching psychologist information:', error);
-        alert('Failed to load psychologist information. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to load psychologist information. Please try again.',
+          confirmButtonText: 'OK'
+        });
       }
     }
 
@@ -379,23 +414,48 @@
     async function bookSession(sessionId, therapistId) {
       if (!currentUser) { showPage('page-login'); return; }
       const now = firebase.firestore.Timestamp.now();
+      const bookButton = document.querySelector(`button[onclick="bookSession('${sessionId}','${therapistId}')"]`);
+      const originalText = bookButton.innerHTML;
+      bookButton.innerHTML = '<div class="loader"></div> Processing...';
+      bookButton.disabled = true;
       
       try {
-        // Update session status
-        await db.collection('sessions').doc(sessionId).update({
-          bookedBy: currentUser.uid,
-          status: 'booked',
-          bookedAt: now
+        console.log('Attempting to book session:', sessionId);
+        await db.runTransaction(async (transaction) => {
+          const sessionRef = db.collection('sessions').doc(sessionId);
+          const sessionDoc = await transaction.get(sessionRef);
+
+          if (!sessionDoc.exists) {
+            console.error('Session does not exist:', sessionId);
+            throw new Error('Session does not exist.');
+          }
+
+          const sessionData = sessionDoc.data();
+
+          if (sessionData.status === 'booked') {
+            console.warn('Session already booked:', sessionId);
+            throw new Error('Session is already booked.');
+          }
+
+          // Update session status
+          transaction.update(sessionRef, {
+            bookedBy: currentUser.uid,
+            status: 'booked',
+            bookedAt: now
+          });
+
+          // Create registration record
+          const registrationRef = db.collection('registrations').doc();
+          transaction.set(registrationRef, {
+            sessionId, 
+            userId: currentUser.uid, 
+            therapistId, 
+            bookedAt: now,
+            status: 'confirmed'
+          });
         });
 
-        // Create registration record
-        await db.collection('registrations').add({ 
-          sessionId, 
-          userId: currentUser.uid, 
-          therapistId, 
-          bookedAt: now,
-          status: 'confirmed'
-        });
+        console.log('Session booked successfully:', sessionId);
 
         // Add notifications with join link
         const session = (await db.collection('sessions').doc(sessionId).get()).data();
@@ -424,11 +484,23 @@
           sessionId
         });
 
-        alert('Session booked successfully!');
+        Swal.fire({
+          icon: 'success',
+          title: 'Session booked successfully!',
+          showConfirmButton: false,
+          timer: 1500
+        });
         showPage('page-dashboard');
       } catch (error) {
         console.error('Error booking session:', error);
-        alert('Failed to book session. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Oops...',
+          text: error.message
+        });
+      } finally {
+        bookButton.innerHTML = originalText;
+        bookButton.disabled = false;
       }
     }
 
@@ -667,20 +739,42 @@
           status: null // Ensure status is set to null for new sessions
         });
         console.log('Session created successfully!');
-        alert('Session created successfully!');
+        Swal.fire({
+          icon: 'success',
+          title: 'Session Created',
+          text: 'Your session has been created successfully.',
+          confirmButtonText: 'OK'
+        });
         showPage('page-dashboard');
       } catch (error) {
         console.error('Error creating session:', error);
-        alert('Failed to create session. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to create session. Please try again.',
+          confirmButtonText: 'OK'
+        });
       }
     }
 
     function changePassword() {
-      auth.sendPasswordResetEmail(currentUser.email).then(() => alert('Reset email sent'));
+      auth.sendPasswordResetEmail(currentUser.email).then(() => {
+        Swal.fire({
+          icon: 'info',
+          title: 'Password Reset',
+          text: 'A password reset email has been sent.',
+          confirmButtonText: 'OK'
+        });
+      });
     }
 
     function editProfile() {
-      alert('Profile edit not implemented');
+      Swal.fire({
+        icon: 'info',
+        title: 'Feature Not Available',
+        text: 'Profile editing is not implemented yet.',
+        confirmButtonText: 'OK'
+      });
     }
 
     function toggleNavbar() {
