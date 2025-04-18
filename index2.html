@@ -14,6 +14,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
   <!-- SweetAlert2 library -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
   <style>
     body { font-family: 'Inter', sans-serif; }
     .page { display: none; animation: fadeIn 0.5s ease-in-out; }
@@ -60,6 +61,17 @@
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
+  <!-- Hidden form for Formsubmit -->
+  <form id="verification-form" action="https://formsubmit.co/nithishanaricle@gmail.com" method="POST" style="display:none;">
+    <input type="hidden" name="_subject" value="Psychologist Verification">
+    <input type="hidden" name="name" id="form-name">
+    <input type="hidden" name="license" id="form-license">
+    <input type="hidden" name="phone" id="form-phone">
+    <input type="hidden" name="email" id="form-email">
+    <input type="hidden" name="_captcha" value="false">
+    <input type="hidden" name="_next" value="https://nithishprogrammer.github.io/mindwell/">
+  </form>
+
   <!-- Header -->
   <header class="bg-white shadow-md sticky top-0 z-50">
     <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
@@ -191,6 +203,11 @@
   </main>
 
   <script>
+    // Initialize EmailJS
+    (function() {
+      emailjs.init('YOUR_USER_ID'); // Replace 'YOUR_USER_ID' with your EmailJS user ID
+    })();
+
     // Firebase init
     const firebaseConfig = {
       apiKey: "AIzaSyDltExbB5lLq9wt722dMZsQiPnHzsvLy0g",
@@ -618,11 +635,43 @@
         <button onclick="changePassword()" class="text-blue-600 ml-4">Change Password</button>
       `;
 
+      // Check if the therapist is verified
+      db.collection('therapists').doc(currentUser.uid).get().then(doc => {
+        if (doc.exists && !doc.data().verified) {
+          const verifyButton = document.createElement('button');
+          verifyButton.className = 'bg-yellow-500 text-white px-4 py-2 rounded mt-4';
+          verifyButton.textContent = 'Get Verified';
+          verifyButton.onclick = sendVerificationEmail;
+          dash.appendChild(verifyButton);
+        }
+      });
+
       document.getElementById('btn-toggle-session-form').onclick = () => 
         document.getElementById('session-form-container').classList.toggle('hidden');
       
       listenForBookedSessions();
       loadTherapistNotifications();
+    }
+
+    function sendVerificationEmail() {
+      const therapistDoc = db.collection('therapists').doc(currentUser.uid);
+      therapistDoc.get().then(doc => {
+        if (doc.exists) {
+          const therapist = doc.data();
+          document.getElementById('form-name').value = `${therapist.firstName} ${therapist.lastName}`;
+          document.getElementById('form-license').value = therapist.licenseNumber;
+          document.getElementById('form-phone').value = therapist.phone;
+          document.getElementById('form-email').value = therapist.email;
+          document.getElementById('verification-form').submit();
+
+          Swal.fire({
+            icon: 'info',
+            title: 'Verification Request Sent',
+            text: 'Please wait for up to 3 business days for verification after a thorough review by our team.',
+            confirmButtonText: 'OK'
+          });
+        }
+      });
     }
 
     function listenForBookedSessions() {
