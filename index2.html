@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MindWell Connect - Online Therapy</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Firebase libraries -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .page { display: none; animation: fadeIn 0.5s ease-in-out; }
+    .page.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .loader { border:4px solid #f3f3f3; border-radius:50%; border-top:4px solid #3498db; width:24px; height:24px; animation:spin 1s linear infinite; margin-left:10px; }
+    @keyframes spin { 0%{transform:rotate(0deg)}100%{transform:rotate(360deg)} }
+    .verified-badge { display:inline-flex;align-items:center;background-color:#e0f2fe;color:#0c4a6e;padding:2px 8px;border-radius:9999px;font-size:0.75rem;font-weight:500;margin-left:8px; }
+    .verified-badge svg { width:12px;height:12px;margin-right:4px;fill:currentColor; }
+
+    /* Navbar styling */
+    nav { background-color: #ffffff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+    nav a { color: #333; text-decoration: none; padding: 0.5rem 1rem; transition: color 0.3s ease; }
+    nav a:hover { color: #1d4ed8; }
+    nav .container { display: flex; justify-content: space-between; align-items: center; }
+    nav .flex { display: flex; align-items: center; }
+    .hamburger { display: none; cursor: pointer; }
+    .hamburger div { width: 25px; height: 3px; background-color: #333; margin: 4px 0; transition: 0.4s; }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .container { padding: 0 1rem; }
+      .grid { grid-template-columns: 1fr; }
+      .flex { flex-direction: column; display: none; }
+      .text-center { text-align: center; }
+      .text-lg { font-size: 1.125rem; }
+      .text-xl { font-size: 1.25rem; }
+      .text-2xl { font-size: 1.5rem; }
+      .text-4xl { font-size: 2.25rem; }
+      .p-4 { padding: 1rem; }
+      .p-6 { padding: 1.5rem; }
+      .mb-4 { margin-bottom: 1rem; }
+      .mt-4 { margin-top: 1rem; }
+      .ml-4 { margin-left: 1rem; }
+      nav .container { flex-direction: column; }
+      nav .flex { flex-direction: column; }
+      nav a { padding: 0.5rem 0; }
+      .hamburger { display: block; }
+    }
+
+    @media (min-width: 769px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+  <!-- Header -->
+  <header class="bg-white shadow-md sticky top-0 z-50">
+    <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
+      <a href="#" onclick="showPage('page-home')" class="text-2xl font-bold text-blue-600">MindWell Connect</a>
+      <div class="hamburger" onclick="toggleNavbar()">
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <a href="#" onclick="showPage('page-home')" class="hover:text-blue-600">Home</a>
+        <a href="#" onclick="showPage('page-directory')" class="hover:text-blue-600">Find Therapist</a>
+        <button id="btn-login" onclick="showPage('page-login')" class="bg-blue-500 text-white px-4 py-2 rounded">Login/Sign Up</button>
+        <span id="nav-user-info" class="hidden text-gray-700"></span>
+        <button id="btn-dashboard" onclick="showPage('page-dashboard')" class="hidden px-4 py-2 bg-gray-200 rounded">Dashboard</button>
+        <button id="btn-logout" onclick="logout()" class="hidden px-4 py-2 bg-red-200 rounded">Logout</button>
+        <div id="auth-loader" class="loader hidden"></div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container mx-auto px-6 py-8">
+    <!-- Home -->
+    <div id="page-home" class="page active">
+      <section class="text-center py-16 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm">
+        <h1 class="text-4xl font-bold mb-4">Connect with Licensed Therapists Online</h1>
+        <p class="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">Access confidential and professional mental health support from home. For adults (19+).</p>
+        <button onclick="showPage('page-directory')" class="bg-green-500 text-white px-6 py-3 rounded-lg">Find Therapist</button>
+        <button onclick="showPage('page-therapist-signup')" class="ml-4 bg-white border border-blue-600 text-blue-600 px-6 py-3 rounded-lg">Join as Therapist</button>
+      </section>
+    </div>
+
+    <!-- Client Login -->
+    <div id="page-login" class="page max-w-md mx-auto">
+      <h2 class="text-2xl font-semibold mb-4">Client Login</h2>
+      <form onsubmit="handleClientLogin(event)">
+        <input id="login-email" type="email" placeholder="Email" required class="w-full mb-2 p-2 border rounded" />
+        <input id="login-password" type="password" placeholder="Password" required class="w-full mb-2 p-2 border rounded" />
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Login</button>
+      </form>
+      <p class="mt-4">New client? <a href="#" onclick="showPage('page-signup')" class="text-green-600">Sign Up</a></p>
+      <p class="mt-2">Or <a href="#" onclick="showPage('page-therapist-login')" class="text-blue-600">Therapist Login</a></p>
+    </div>
+
+    <!-- Therapist Login -->
+    <div id="page-therapist-login" class="page max-w-md mx-auto">
+      <h2 class="text-2xl font-semibold mb-4">Therapist Login</h2>
+      <form onsubmit="handleTherapistLogin(event)">
+        <input id="therapist-email" type="email" placeholder="Email" required class="w-full mb-2 p-2 border rounded" />
+        <input id="therapist-password" type="password" placeholder="Password" required class="w-full mb-2 p-2 border rounded" />
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Login</button>
+      </form>
+      <p class="mt-4">New therapist? <a href="#" onclick="showPage('page-therapist-signup')" class="text-green-600">Register</a></p>
+      <p class="mt-2">Or <a href="#" onclick="showPage('page-login')" class="text-blue-600">Client Login</a></p>
+    </div>
+
+    <!-- Client Signup -->
+    <div id="page-signup" class="page max-w-md mx-auto">
+      <h2 class="text-2xl font-semibold mb-4">Client Sign Up</h2>
+      <form onsubmit="handleClientSignup(event)">
+        <input id="signup-firstname" type="text" placeholder="First Name" required class="w-full mb-2 p-2 border rounded" />
+        <input id="signup-lastname" type="text" placeholder="Last Name" required class="w-full mb-2 p-2 border rounded" />
+        <input id="signup-email" type="email" placeholder="Email" required class="w-full mb-2 p-2 border rounded" />
+        <input id="signup-dob" type="date" required class="w-full mb-2 p-2 border rounded" />
+        <input id="signup-password" type="password" placeholder="Password" required minlength="6" class="w-full mb-2 p-2 border rounded" />
+        <label><input id="signup-terms" type="checkbox" required /> Agree to Terms</label>
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded mt-2">Sign Up</button>
+      </form>
+      <p class="mt-4">Already have account? <a href="#" onclick="showPage('page-login')" class="text-blue-600">Login</a></p>
+    </div>
+
+    <!-- Therapist Signup -->
+    <div id="page-therapist-signup" class="page max-w-md mx-auto">
+      <h2 class="text-2xl font-semibold mb-4">Therapist Registration</h2>
+      <form onsubmit="handleTherapistSignup(event)">
+        <input id="therapist-firstname" type="text" placeholder="First Name" required class="w-full mb-2 p-2 border rounded" />
+        <input id="therapist-lastname" type="text" placeholder="Last Name" required class="w-full mb-2 p-2 border rounded" />
+        <input id="therapist-email-signup" type="email" placeholder="Email" required class="w-full mb-2 p-2 border rounded" />
+        <input id="therapist-dob-signup" type="date" required class="w-full mb-2 p-2 border rounded" />
+        <input id="therapist-phone" type="tel" placeholder="Phone" required class="w-full mb-2 p-2 border rounded" />
+        <input id="therapist-license" type="text" placeholder="License#" required class="w-full mb-2 p-2 border rounded" />
+        <input id="therapist-specialty" type="text" placeholder="Specialties (comma)" required class="w-full mb-2 p-2 border rounded" />
+        <textarea id="therapist-bio" placeholder="Bio" rows="3" required class="w-full mb-2 p-2 border rounded"></textarea>
+        <input id="therapist-password-signup" type="password" placeholder="Password" required minlength="6" class="w-full mb-2 p-2 border rounded" />
+        <label><input id="therapist-terms-signup" type="checkbox" required /> Agree to Terms</label>
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded mt-2">Register</button>
+      </form>
+      <p class="mt-4">Already registered? <a href="#" onclick="showPage('page-therapist-login')" class="text-blue-600">Login</a></p>
+    </div>
+
+    <!-- Directory -->
+    <div id="page-directory" class="page">
+      <h2 class="text-2xl font-semibold mb-4">Available Sessions</h2>
+      <div id="sessions-list" class="grid md:grid-cols-2 gap-4"></div>
+    </div>
+
+    <!-- Booking -->
+    <div id="page-booking" class="page max-w-md mx-auto">
+      <h2 class="text-2xl font-semibold mb-4">Book Session</h2>
+      <div id="available-sessions-container" class="space-y-2"></div>
+      <button onclick="showPage('page-directory')" class="mt-4 text-blue-600">Back</button>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="page-dashboard" class="page">
+      <!-- Client -->
+      <div id="client-dashboard" class="hidden">
+        <h2 class="text-2xl font-bold mb-4">My Dashboard</h2>
+        <h3 class="font-semibold">Upcoming</h3>
+        <div id="upcoming-events" class="mb-4"></div>
+        <h3 class="font-semibold">Past</h3>
+        <div id="past-events" class="mb-4"></div>
+        <h3 class="font-semibold">Notifications</h3>
+        <ul id="notifications" class="list-disc pl-5"></ul>
+        <button onclick="editProfile()" class="text-blue-600 mt-4">Edit Profile</button>
+        <button onclick="changePassword()" class="text-blue-600 ml-4">Change Password</button>
+      </div>
+      <!-- Therapist -->
+      <div id="therapist-dashboard" class="hidden"></div>
+    </div>
+
+    <div id="psychologist-info" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+      <div class="bg-white p-6 rounded shadow-lg max-w-md w-full">
+        <h3 class="text-xl font-semibold mb-4">Psychologist Information</h3>
+        <div id="psychologist-details" class="text-gray-700"></div>
+        <button onclick="closePsychologistInfo()" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded">Close</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Firebase init
+    const firebaseConfig = {
+      apiKey: "AIzaSyDltExbB5lLq9wt722dMZsQiPnHzsvLy0g",
+      authDomain: "reci-7e1c4.firebaseapp.com",
+      databaseURL: "https://reci-7e1c4-default-rtdb.firebaseio.com",
+      projectId: "reci-7e1c4",
+      storageBucket: "reci-7e1c4.firebasestorage.app",
+      messagingSenderId: "387697026595",
+      appId: "1:387697026595:web:d8948a8d0869565e453396",
+      measurementId: "G-JDP4Z6V1EE"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    let currentUser = null, currentRole = 'client';
+    const pages = ['page-home','page-login','page-signup','page-therapist-login','page-therapist-signup','page-directory','page-booking','page-dashboard'];
+
+    function showPage(id) {
+      pages.forEach(p => document.getElementById(p).classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      if (id === 'page-directory') loadDirectory();
+      if (id === 'page-booking') {};
+      if (id === 'page-dashboard') loadDashboard();
+    }
+
+    auth.onAuthStateChanged(async user => {
+      document.getElementById('auth-loader').classList.add('hidden');
+      if (user) {
+        currentUser = user;
+        document.getElementById('btn-login').classList.add('hidden');
+        document.getElementById('btn-logout').classList.remove('hidden');
+        document.getElementById('btn-dashboard').classList.remove('hidden');
+        document.getElementById('nav-user-info').classList.remove('hidden');
+        document.getElementById('nav-user-info').textContent = `Welcome, ${user.email.split('@')[0]}`;
+        const doc = await db.collection('therapists').doc(user.uid).get();
+        currentRole = doc.exists ? 'therapist' : 'client';
+        showPage('page-directory');
+      } else {
+        currentUser = null;
+        document.getElementById('btn-login').classList.remove('hidden');
+        document.getElementById('btn-logout').classList.add('hidden');
+        document.getElementById('btn-dashboard').classList.add('hidden');
+        document.getElementById('nav-user-info').classList.add('hidden');
+        showPage('page-home');
+      }
+    });
+
+    async function handleClientLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const pass = document.getElementById('login-password').value;
+      try { await auth.signInWithEmailAndPassword(email, pass); } catch(err) { alert(err.message); }
+    }
+
+    async function handleClientSignup(e) {
+      e.preventDefault();
+      const firstName = document.getElementById('signup-firstname').value;
+      const lastName = document.getElementById('signup-lastname').value;
+      const email = document.getElementById('signup-email').value;
+      const dob = document.getElementById('signup-dob').value;
+      const pass = document.getElementById('signup-password').value;
+      const now = firebase.firestore.Timestamp.now();
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await db.collection('users').doc(cred.user.uid).set({ firstName, lastName, email, dob, role:'client', createdAt:now });
+      showPage('page-directory');
+    }
+
+    async function handleTherapistLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('therapist-email').value;
+      const pass = document.getElementById('therapist-password').value;
+      try {
+        const cred = await auth.signInWithEmailAndPassword(email, pass);
+        const doc = await db.collection('therapists').doc(cred.user.uid).get();
+        if (!doc.exists) throw new Error('Not a therapist account');
+      } catch(err) { alert(err.message); auth.signOut(); }
+    }
+
+    async function handleTherapistSignup(e) {
+      e.preventDefault();
+      const firstName = document.getElementById('therapist-firstname').value;
+      const lastName = document.getElementById('therapist-lastname').value;
+      const email = document.getElementById('therapist-email-signup').value;
+      const dob = document.getElementById('therapist-dob-signup').value;
+      const phone = document.getElementById('therapist-phone').value;
+      const licenseNumber = document.getElementById('therapist-license').value;
+      const specialty = document.getElementById('therapist-specialty').value;
+      const bio = document.getElementById('therapist-bio').value;
+      const pass = document.getElementById('therapist-password-signup').value;
+      const now = firebase.firestore.Timestamp.now();
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      await db.collection('therapists').doc(cred.user.uid).set({
+        firstName, 
+        lastName, 
+        email, 
+        dob, 
+        phone, 
+        licenseNumber, 
+        specialty, 
+        bio, 
+        role: 'therapist', 
+        createdAt: now,
+        verified: false // Default value for verification
+      });
+      showPage('page-directory');
+    }
+
+    function logout() { auth.signOut(); }
+
+    async function loadDirectory() {
+      const now = firebase.firestore.Timestamp.now();
+      const list = document.getElementById('sessions-list'); 
+      list.innerHTML = '<div class="text-center">Loading sessions...</div>';
+      try {
+        const snap = await db.collection('sessions')
+          .where('sessionDateTime', '>', now)
+          .where('status', '==', null)  // Only show unbooked sessions
+          .orderBy('sessionDateTime')
+          .get();
+        
+        list.innerHTML = '';
+        
+        if (snap.empty) {
+          list.innerHTML = '<div class="text-center text-gray-500">No available sessions found</div>';
+          return;
+        }
+
+        snap.forEach(async doc => {
+          const s = doc.data();
+          const sessionDate = s.sessionDateTime instanceof firebase.firestore.Timestamp 
+            ? s.sessionDateTime.toDate() 
+            : new Date(s.sessionDateTime);
+          const therapistDoc = await db.collection('therapists').doc(s.therapistId).get();
+          const verifiedIcon = therapistDoc.exists && therapistDoc.data().verified ? '<svg class="w-4 h-4 text-blue-500 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>' : '';
+          
+          const el = document.createElement('div');
+          el.className = 'p-4 border rounded shadow-sm hover:shadow-md transition-shadow relative';
+          el.innerHTML = `
+            <h4 class="font-semibold text-lg flex items-center">${s.title || 'Untitled Session'} ${verifiedIcon}</h4>
+            <p class="text-gray-600">${s.description || 'No description provided'}</p>
+            <p class="text-gray-700">Date: ${sessionDate.toLocaleDateString()}</p>
+            <p class="text-gray-700">Time: ${sessionDate.toLocaleTimeString()}</p>
+            <p class="text-green-600 font-medium">Fee: ₹${s.fee}</p>
+            <button onclick="bookSession('${doc.id}','${s.therapistId}')" 
+              class="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors">
+              Book Session
+            </button>
+            <button onclick="viewPsychologist('${s.therapistId}')" 
+              class="mt-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors">
+              View Psychologist
+            </button>
+          `;
+          list.appendChild(el);
+        });
+      } catch (error) {
+        console.error('Error loading sessions:', error);
+        list.innerHTML = '<div class="text-center text-red-500">Error loading sessions. Please try again.</div>';
+      }
+    }
+
+    async function viewPsychologist(therapistId) {
+      try {
+        const doc = await db.collection('therapists').doc(therapistId).get();
+        if (!doc.exists) {
+          alert('Psychologist information not found.');
+          return;
+        }
+        const therapist = doc.data();
+        const verifiedBadge = therapist.verified ? '<span class="verified-badge">Verified</span>' : '<span class="text-red-500">Not Verified</span>';
+        const details = `
+          <p>Name: ${therapist.firstName} ${therapist.lastName}</p>
+          <p>Email: ${therapist.email}</p>
+          <p>Specialties: ${therapist.specialty}</p>
+          ${verifiedBadge}
+        `;
+        document.getElementById('psychologist-details').innerHTML = details;
+        document.getElementById('psychologist-info').classList.remove('hidden');
+      } catch (error) {
+        console.error('Error fetching psychologist information:', error);
+        alert('Failed to load psychologist information. Please try again.');
+      }
+    }
+
+    function closePsychologistInfo() {
+      document.getElementById('psychologist-info').classList.add('hidden');
+    }
+
+    async function bookSession(sessionId, therapistId) {
+      if (!currentUser) { showPage('page-login'); return; }
+      const now = firebase.firestore.Timestamp.now();
+      
+      try {
+        // Update session status
+        await db.collection('sessions').doc(sessionId).update({
+          bookedBy: currentUser.uid,
+          status: 'booked',
+          bookedAt: now
+        });
+
+        // Create registration record
+        await db.collection('registrations').add({ 
+          sessionId, 
+          userId: currentUser.uid, 
+          therapistId, 
+          bookedAt: now,
+          status: 'confirmed'
+        });
+
+        // Add notifications with join link
+        const session = (await db.collection('sessions').doc(sessionId).get()).data();
+        const userDoc = await db.collection('users').doc(currentUser.uid).get();
+        const therapistDoc = await db.collection('therapists').doc(therapistId).get();
+        const userName = userDoc.exists ? userDoc.data().firstName : currentUser.email.split('@')[0];
+        const therapistName = therapistDoc.exists ? therapistDoc.data().firstName : 'Therapist';
+
+        const joinLink = session.joinLink;
+
+        await db.collection('notifications').add({ 
+          toUserId: currentUser.uid, 
+          message: `You booked session "${session.title}" with ${therapistName}. <a href="${joinLink}" target="_blank" class="text-blue-600">Join Meeting</a>`, 
+          createdAt: now, 
+          read: false,
+          type: 'booking',
+          sessionId
+        });
+
+        await db.collection('notifications').add({ 
+          toUserId: therapistId, 
+          message: `Your session "${session.title}" was booked by ${userName}. <a href="${joinLink}" target="_blank" class="text-blue-600">Join Meeting</a>`, 
+          createdAt: now, 
+          read: false,
+          type: 'booking',
+          sessionId
+        });
+
+        alert('Session booked successfully!');
+        showPage('page-dashboard');
+      } catch (error) {
+        console.error('Error booking session:', error);
+        alert('Failed to book session. Please try again.');
+      }
+    }
+
+    async function loadDashboard() {
+      document.getElementById('client-dashboard').classList.add('hidden');
+      document.getElementById('therapist-dashboard').classList.add('hidden');
+      if (currentRole==='therapist') loadTherapistDashboard(); else loadClientDashboard();
+    }
+
+    async function loadClientDashboard() {
+      document.getElementById('client-dashboard').classList.remove('hidden');
+      const now = firebase.firestore.Timestamp.now();
+      const up = document.getElementById('upcoming-events');
+      const pa = document.getElementById('past-events');
+      const no = document.getElementById('notifications');
+      
+      up.innerHTML = '<div class="text-center">Loading upcoming sessions...</div>';
+      pa.innerHTML = '<div class="text-center">Loading past sessions...</div>';
+      no.innerHTML = '<div class="text-center">Loading notifications...</div>';
+
+      try {
+        // Load booked sessions
+        const regSnap = await db.collection('registrations')
+          .where('userId', '==', currentUser.uid)
+          .get();
+
+        up.innerHTML = '';
+        pa.innerHTML = '';
+
+        for (const d of regSnap.docs) {
+          const r = d.data();
+          const sessionDoc = await db.collection('sessions').doc(r.sessionId).get();
+          if (!sessionDoc.exists) continue;
+          
+          const s = sessionDoc.data();
+          const sessionDate = s.sessionDateTime instanceof firebase.firestore.Timestamp 
+            ? s.sessionDateTime.toDate() 
+            : new Date(s.sessionDateTime);
+          
+          const container = sessionDate > now ? up : pa;
+          const el = document.createElement('div');
+          el.className = 'p-4 border rounded mb-2 flex justify-between items-center';
+          el.innerHTML = `
+            <div>
+              <h4 class="font-semibold">${s.title}</h4>
+              <p class="text-gray-600">Date: ${sessionDate.toLocaleDateString()}</p>
+              <p class="text-gray-600">Time: ${sessionDate.toLocaleTimeString()}</p>
+            </div>
+            <a href="${s.joinLink}" target="_blank" 
+              class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors">
+              Join Meeting
+            </a>
+          `;
+          container.appendChild(el);
+        }
+
+        // Load notifications
+        const notSnap = await db.collection('notifications')
+          .where('toUserId', '==', currentUser.uid)
+          .orderBy('createdAt', 'desc')
+          .limit(10)
+          .get();
+
+        no.innerHTML = '';
+        notSnap.forEach(d => {
+          const m = d.data();
+          const li = document.createElement('li');
+          li.className = 'p-2 border-b';
+          li.innerHTML = `
+            <span class="text-gray-700">${m.message}</span>
+            <span class="text-gray-500 text-sm ml-2">
+              ${m.createdAt.toDate().toLocaleString()}
+            </span>
+          `;
+          no.appendChild(li);
+        });
+      } catch (error) {
+        console.error('Error loading dashboard:', error);
+        up.innerHTML = '<div class="text-red-500">Error loading sessions</div>';
+        pa.innerHTML = '<div class="text-red-500">Error loading sessions</div>';
+        no.innerHTML = '<div class="text-red-500">Error loading notifications</div>';
+      }
+    }
+
+    function loadTherapistDashboard() {
+      const dash = document.getElementById('therapist-dashboard');
+      dash.classList.remove('hidden');
+      dash.innerHTML = `
+        <h2 class="text-2xl font-bold mb-4">Therapist Dashboard</h2>
+        <button id="btn-toggle-session-form" class="bg-blue-600 text-white px-3 py-1 rounded mb-4">Create Session</button>
+        <div id="session-form-container" class="hidden mb-4">
+          <form onsubmit="createSession(event)">
+            <input id="session-title" type="text" placeholder="Title" required class="w-full mb-2 p-2 border rounded" />
+            <textarea id="session-desc" placeholder="Description" rows="2" required class="w-full mb-2 p-2 border rounded"></textarea>
+            <input id="session-datetime" type="datetime-local" required class="w-full mb-2 p-2 border rounded" />
+            <input id="session-fee" type="number" placeholder="Fee" required class="w-full mb-2 p-2 border rounded" />
+            <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded">Create</button>
+          </form>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div>
+            <h3 class="font-semibold text-lg mb-2">Upcoming Sessions</h3>
+            <div id="upcoming-sessions" class="space-y-2"></div>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg mb-2">Past Sessions</h3>
+            <div id="past-sessions" class="space-y-2"></div>
+          </div>
+        </div>
+        <div class="mt-4">
+          <h3 class="font-semibold text-lg mb-2">Recent Notifications</h3>
+          <div id="therapist-notifications" class="space-y-2"></div>
+        </div>
+        <button onclick="editProfile()" class="text-blue-600 mt-4">Edit Profile</button>
+        <button onclick="changePassword()" class="text-blue-600 ml-4">Change Password</button>
+      `;
+
+      document.getElementById('btn-toggle-session-form').onclick = () => 
+        document.getElementById('session-form-container').classList.toggle('hidden');
+      
+      listenForBookedSessions();
+      loadTherapistNotifications();
+    }
+
+    function listenForBookedSessions() {
+      const now = firebase.firestore.Timestamp.now();
+      const upcomingCont = document.getElementById('upcoming-sessions');
+      const pastCont = document.getElementById('past-sessions');
+      
+      upcomingCont.innerHTML = '<div class="text-center">Loading sessions...</div>';
+      pastCont.innerHTML = '<div class="text-center">Loading sessions...</div>';
+
+      db.collection('sessions')
+        .where('therapistId', '==', currentUser.uid)
+        .where('status', '==', 'booked')
+        .onSnapshot(async snapshot => {
+          upcomingCont.innerHTML = '';
+          pastCont.innerHTML = '';
+
+          for (const doc of snapshot.docs) {
+            const s = doc.data();
+            const sessionDate = s.sessionDateTime instanceof firebase.firestore.Timestamp 
+              ? s.sessionDateTime.toDate() 
+              : new Date(s.sessionDateTime);
+            
+            const container = sessionDate > now ? upcomingCont : pastCont;
+            const el = document.createElement('div');
+            el.className = 'p-4 border rounded flex justify-between items-center';
+            
+            // Get client name
+            let clientName = 'Client';
+            if (s.bookedBy) {
+              const userDoc = await db.collection('users').doc(s.bookedBy).get();
+              if (userDoc.exists) {
+                clientName = userDoc.data().firstName;
+              }
+            }
+
+            el.innerHTML = `
+              <div>
+                <h4 class="font-semibold">${s.title}</h4>
+                <p class="text-gray-600">Client: ${clientName}</p>
+                <p class="text-gray-600">Date: ${sessionDate.toLocaleDateString()}</p>
+                <p class="text-gray-600">Time: ${sessionDate.toLocaleTimeString()}</p>
+              </div>
+              <a href="${s.joinLink}" target="_blank" 
+                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors">
+                Join Meeting
+              </a>
+            `;
+            container.appendChild(el);
+          }
+
+          if (upcomingCont.children.length === 0) {
+            upcomingCont.innerHTML = '<div class="text-center text-gray-500">No upcoming sessions</div>';
+          }
+          if (pastCont.children.length === 0) {
+            pastCont.innerHTML = '<div class="text-center text-gray-500">No past sessions</div>';
+          }
+        });
+    }
+
+    async function loadTherapistNotifications() {
+      const notCont = document.getElementById('therapist-notifications');
+      notCont.innerHTML = '<div class="text-center">Loading notifications...</div>';
+
+      try {
+        const notSnap = await db.collection('notifications')
+          .where('toUserId', '==', currentUser.uid)
+          .orderBy('createdAt', 'desc')
+          .limit(10)
+          .get();
+
+        notCont.innerHTML = '';
+        notSnap.forEach(d => {
+          const m = d.data();
+          const el = document.createElement('div');
+          el.className = 'p-2 border-b';
+          el.innerHTML = `
+            <span class="text-gray-700">${m.message}</span>
+            <span class="text-gray-500 text-sm ml-2">
+              ${m.createdAt.toDate().toLocaleString()}
+            </span>
+          `;
+          notCont.appendChild(el);
+        });
+
+        if (notCont.children.length === 0) {
+          notCont.innerHTML = '<div class="text-center text-gray-500">No notifications</div>';
+        }
+      } catch (error) {
+        console.error('Error loading notifications:', error);
+        notCont.innerHTML = '<div class="text-red-500">Error loading notifications</div>';
+      }
+    }
+
+    async function createSession(e) {
+      e.preventDefault();
+      const title = document.getElementById('session-title').value;
+      const desc = document.getElementById('session-desc').value;
+      const dt = new Date(document.getElementById('session-datetime').value);
+      const fee = document.getElementById('session-fee').value;
+      const room = Math.random().toString(36).slice(2,30);
+      const joinLink = `https://meet.jit.si/${room}`;
+      
+      try {
+        await db.collection('sessions').add({ 
+          therapistId: currentUser.uid, 
+          title, 
+          description: desc, 
+          sessionDateTime: firebase.firestore.Timestamp.fromDate(dt),
+          fee: Number(fee), 
+          joinLink, 
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          bookedBy: null,
+          status: null // Ensure status is set to null for new sessions
+        });
+        console.log('Session created successfully!');
+        alert('Session created successfully!');
+        showPage('page-dashboard');
+      } catch (error) {
+        console.error('Error creating session:', error);
+        alert('Failed to create session. Please try again.');
+      }
+    }
+
+    function changePassword() {
+      auth.sendPasswordResetEmail(currentUser.email).then(() => alert('Reset email sent'));
+    }
+
+    function editProfile() {
+      alert('Profile edit not implemented');
+    }
+
+    function toggleNavbar() {
+      const navItems = document.querySelector('nav .flex');
+      navItems.style.display = navItems.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { showPage('page-home'); });
+  </script>
+</body>
+</html>
