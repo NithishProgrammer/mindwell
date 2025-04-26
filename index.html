@@ -12,6 +12,9 @@
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+  <!-- SweetAlert2 library -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
   <style>
     body { font-family: 'Inter', sans-serif; }
     .page { display: none; animation: fadeIn 0.5s ease-in-out; }
@@ -21,13 +24,63 @@
     @keyframes spin { 0%{transform:rotate(0deg)}100%{transform:rotate(360deg)} }
     .verified-badge { display:inline-flex;align-items:center;background-color:#e0f2fe;color:#0c4a6e;padding:2px 8px;border-radius:9999px;font-size:0.75rem;font-weight:500;margin-left:8px; }
     .verified-badge svg { width:12px;height:12px;margin-right:4px;fill:currentColor; }
+
+    /* Navbar styling */
+    nav { background-color: #ffffff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+    nav a { color: #333; text-decoration: none; padding: 0.5rem 1rem; transition: color 0.3s ease; }
+    nav a:hover { color: #1d4ed8; }
+    nav .container { display: flex; justify-content: space-between; align-items: center; }
+    nav .flex { display: flex; align-items: center; }
+    .hamburger { display: none; cursor: pointer; }
+    .hamburger div { width: 25px; height: 3px; background-color: #333; margin: 4px 0; transition: 0.4s; }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .container { padding: 0 1rem; }
+      .grid { grid-template-columns: 1fr; }
+      .flex { flex-direction: column; display: none; }
+      .text-center { text-align: center; }
+      .text-lg { font-size: 1.125rem; }
+      .text-xl { font-size: 1.25rem; }
+      .text-2xl { font-size: 1.5rem; }
+      .text-4xl { font-size: 2.25rem; }
+      .p-4 { padding: 1rem; }
+      .p-6 { padding: 1.5rem; }
+      .mb-4 { margin-bottom: 1rem; }
+      .mt-4 { margin-top: 1rem; }
+      .ml-4 { margin-left: 1rem; }
+      nav .container { flex-direction: column; }
+      nav .flex { flex-direction: column; }
+      nav a { padding: 0.5rem 0; }
+      .hamburger { display: block; }
+    }
+
+    @media (min-width: 769px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
+  <!-- Hidden form for Formsubmit -->
+  <form id="verification-form" action="https://formsubmit.co/nithishanaricle@gmail.com" method="POST" style="display:none;">
+    <input type="hidden" name="_subject" value="Psychologist Verification">
+    <input type="hidden" name="name" id="form-name">
+    <input type="hidden" name="license" id="form-license">
+    <input type="hidden" name="phone" id="form-phone">
+    <input type="hidden" name="email" id="form-email">
+    <input type="hidden" name="_captcha" value="false">
+    <input type="hidden" name="_next" value="https://nithishprogrammer.github.io/mindwell/">
+  </form>
+
   <!-- Header -->
   <header class="bg-white shadow-md sticky top-0 z-50">
     <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
       <a href="#" onclick="showPage('page-home')" class="text-2xl font-bold text-blue-600">MindWell Connect</a>
+      <div class="hamburger" onclick="toggleNavbar()">
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>
       <div class="flex items-center space-x-4">
         <a href="#" onclick="showPage('page-home')" class="hover:text-blue-600">Home</a>
         <a href="#" onclick="showPage('page-directory')" class="hover:text-blue-600">Find Therapist</a>
@@ -135,6 +188,7 @@
         <ul id="notifications" class="list-disc pl-5"></ul>
         <button onclick="editProfile()" class="text-blue-600 mt-4">Edit Profile</button>
         <button onclick="changePassword()" class="text-blue-600 ml-4">Change Password</button>
+        <button onclick="deleteAccount()" class="text-red-600 ml-4">Delete Account</button>
       </div>
       <!-- Therapist -->
       <div id="therapist-dashboard" class="hidden"></div>
@@ -150,6 +204,11 @@
   </main>
 
   <script>
+    // Initialize EmailJS
+    (function() {
+      emailjs.init('YOUR_USER_ID'); // Replace 'YOUR_USER_ID' with your EmailJS user ID
+    })();
+
     // Firebase init
     const firebaseConfig = {
       apiKey: "AIzaSyDltExbB5lLq9wt722dMZsQiPnHzsvLy0g",
@@ -201,7 +260,16 @@
       e.preventDefault();
       const email = document.getElementById('login-email').value;
       const pass = document.getElementById('login-password').value;
-      try { await auth.signInWithEmailAndPassword(email, pass); } catch(err) { alert(err.message); }
+      try { 
+        await auth.signInWithEmailAndPassword(email, pass); 
+      } catch(err) { 
+        Swal.fire({
+          icon: 'error',
+          title: 'Login Failed',
+          text: err.message,
+          confirmButtonText: 'Try Again'
+        });
+      }
     }
 
     async function handleClientSignup(e) {
@@ -225,7 +293,15 @@
         const cred = await auth.signInWithEmailAndPassword(email, pass);
         const doc = await db.collection('therapists').doc(cred.user.uid).get();
         if (!doc.exists) throw new Error('Not a therapist account');
-      } catch(err) { alert(err.message); auth.signOut(); }
+      } catch(err) { 
+        Swal.fire({
+          icon: 'error',
+          title: 'Login Failed',
+          text: err.message,
+          confirmButtonText: 'Try Again'
+        });
+        auth.signOut(); 
+      }
     }
 
     async function handleTherapistSignup(e) {
@@ -254,6 +330,12 @@
         createdAt: now,
         verified: false // Default value for verification
       });
+      Swal.fire({
+        icon: 'success',
+        title: 'Registration Successful',
+        text: 'You have been registered as a therapist.',
+        confirmButtonText: 'Continue'
+      });
       showPage('page-directory');
     }
 
@@ -266,7 +348,7 @@
       try {
         const snap = await db.collection('sessions')
           .where('sessionDateTime', '>', now)
-          .where('status', '==', null)  // Only show unbooked sessions
+          .where('status', '==', null)
           .orderBy('sessionDateTime')
           .get();
         
@@ -277,14 +359,16 @@
           return;
         }
 
+        let found = false;
         snap.forEach(async doc => {
           const s = doc.data();
+          console.log('Session loaded:', s); // Debugging output
+          found = true;
           const sessionDate = s.sessionDateTime instanceof firebase.firestore.Timestamp 
             ? s.sessionDateTime.toDate() 
             : new Date(s.sessionDateTime);
           const therapistDoc = await db.collection('therapists').doc(s.therapistId).get();
           const verifiedIcon = therapistDoc.exists && therapistDoc.data().verified ? '<svg class="w-4 h-4 text-blue-500 ml-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>' : '';
-          
           const el = document.createElement('div');
           el.className = 'p-4 border rounded shadow-sm hover:shadow-md transition-shadow relative';
           el.innerHTML = `
@@ -304,6 +388,9 @@
           `;
           list.appendChild(el);
         });
+        if (!found) {
+          list.innerHTML = '<div class="text-center text-gray-500">No available sessions found (debug: none matched)</div>';
+        }
       } catch (error) {
         console.error('Error loading sessions:', error);
         list.innerHTML = '<div class="text-center text-red-500">Error loading sessions. Please try again.</div>';
@@ -314,7 +401,12 @@
       try {
         const doc = await db.collection('therapists').doc(therapistId).get();
         if (!doc.exists) {
-          alert('Psychologist information not found.');
+          Swal.fire({
+            icon: 'error',
+            title: 'Not Found',
+            text: 'Psychologist information not found.',
+            confirmButtonText: 'OK'
+          });
           return;
         }
         const therapist = doc.data();
@@ -329,7 +421,12 @@
         document.getElementById('psychologist-info').classList.remove('hidden');
       } catch (error) {
         console.error('Error fetching psychologist information:', error);
-        alert('Failed to load psychologist information. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to load psychologist information. Please try again.',
+          confirmButtonText: 'OK'
+        });
       }
     }
 
@@ -340,23 +437,48 @@
     async function bookSession(sessionId, therapistId) {
       if (!currentUser) { showPage('page-login'); return; }
       const now = firebase.firestore.Timestamp.now();
+      const bookButton = document.querySelector(`button[onclick="bookSession('${sessionId}','${therapistId}')"]`);
+      const originalText = bookButton.innerHTML;
+      bookButton.innerHTML = '<div class="loader"></div> Processing...';
+      bookButton.disabled = true;
       
       try {
-        // Update session status
-        await db.collection('sessions').doc(sessionId).update({
-          bookedBy: currentUser.uid,
-          status: 'booked',
-          bookedAt: now
+        console.log('Attempting to book session:', sessionId);
+        await db.runTransaction(async (transaction) => {
+          const sessionRef = db.collection('sessions').doc(sessionId);
+          const sessionDoc = await transaction.get(sessionRef);
+
+          if (!sessionDoc.exists) {
+            console.error('Session does not exist:', sessionId);
+            throw new Error('Session does not exist.');
+          }
+
+          const sessionData = sessionDoc.data();
+
+          if (sessionData.status === 'booked') {
+            console.warn('Session already booked:', sessionId);
+            throw new Error('Session is already booked.');
+          }
+
+          // Update session status
+          transaction.update(sessionRef, {
+            bookedBy: currentUser.uid,
+            status: 'booked',
+            bookedAt: now
+          });
+
+          // Create registration record
+          const registrationRef = db.collection('registrations').doc();
+          transaction.set(registrationRef, {
+            sessionId, 
+            userId: currentUser.uid, 
+            therapistId, 
+            bookedAt: now,
+            status: 'confirmed'
+          });
         });
 
-        // Create registration record
-        await db.collection('registrations').add({ 
-          sessionId, 
-          userId: currentUser.uid, 
-          therapistId, 
-          bookedAt: now,
-          status: 'confirmed'
-        });
+        console.log('Session booked successfully:', sessionId);
 
         // Add notifications with join link
         const session = (await db.collection('sessions').doc(sessionId).get()).data();
@@ -385,11 +507,23 @@
           sessionId
         });
 
-        alert('Session booked successfully!');
+        Swal.fire({
+          icon: 'success',
+          title: 'Session booked successfully!',
+          showConfirmButton: false,
+          timer: 1500
+        });
         showPage('page-dashboard');
       } catch (error) {
         console.error('Error booking session:', error);
-        alert('Failed to book session. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Oops...',
+          text: error.message
+        });
+      } finally {
+        bookButton.innerHTML = originalText;
+        bookButton.disabled = false;
       }
     }
 
@@ -505,13 +639,46 @@
         </div>
         <button onclick="editProfile()" class="text-blue-600 mt-4">Edit Profile</button>
         <button onclick="changePassword()" class="text-blue-600 ml-4">Change Password</button>
+        <button onclick="deleteAccount()" class="text-red-600 ml-4">Delete Account</button>
       `;
+
+      // Check if the therapist is verified
+      db.collection('therapists').doc(currentUser.uid).get().then(doc => {
+        if (doc.exists && !doc.data().verified) {
+          const verifyButton = document.createElement('button');
+          verifyButton.className = 'bg-yellow-500 text-white px-4 py-2 rounded mt-4';
+          verifyButton.textContent = 'Get Verified';
+          verifyButton.onclick = sendVerificationEmail;
+          dash.appendChild(verifyButton);
+        }
+      });
 
       document.getElementById('btn-toggle-session-form').onclick = () => 
         document.getElementById('session-form-container').classList.toggle('hidden');
       
       listenForBookedSessions();
       loadTherapistNotifications();
+    }
+
+    function sendVerificationEmail() {
+      const therapistDoc = db.collection('therapists').doc(currentUser.uid);
+      therapistDoc.get().then(doc => {
+        if (doc.exists) {
+          const therapist = doc.data();
+          document.getElementById('form-name').value = `${therapist.firstName} ${therapist.lastName}`;
+          document.getElementById('form-license').value = therapist.licenseNumber;
+          document.getElementById('form-phone').value = therapist.phone;
+          document.getElementById('form-email').value = therapist.email;
+          document.getElementById('verification-form').submit();
+
+          Swal.fire({
+            icon: 'info',
+            title: 'Verification Request Sent',
+            text: 'Please wait for up to 3 business days for verification after a thorough review by our team.',
+            confirmButtonText: 'OK'
+          });
+        }
+      });
     }
 
     function listenForBookedSessions() {
@@ -610,38 +777,131 @@
       e.preventDefault();
       const title = document.getElementById('session-title').value;
       const desc = document.getElementById('session-desc').value;
-      const dt = new Date(document.getElementById('session-datetime').value);
-      const fee = document.getElementById('session-fee').value;
+      const dtValue = document.getElementById('session-datetime').value;
+      if (!dtValue) {
+        Swal.fire({ icon: 'error', title: 'Missing Date/Time', text: 'Please select a date and time.' });
+        return;
+      }
+      const dt = new Date(dtValue);
+      const fee = Number(document.getElementById('session-fee').value);
       const room = Math.random().toString(36).slice(2,30);
       const joinLink = `https://meet.jit.si/${room}`;
-      
       try {
         await db.collection('sessions').add({ 
           therapistId: currentUser.uid, 
           title, 
           description: desc, 
           sessionDateTime: firebase.firestore.Timestamp.fromDate(dt),
-          fee: Number(fee), 
+          fee, 
           joinLink, 
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           bookedBy: null,
-          status: null // Ensure status is set to null for new sessions
+          status: null
         });
-        console.log('Session created successfully!');
-        alert('Session created successfully!');
+        Swal.fire({
+          icon: 'success',
+          title: 'Session Created',
+          text: 'Your session has been created successfully.',
+          confirmButtonText: 'OK'
+        });
         showPage('page-dashboard');
       } catch (error) {
-        console.error('Error creating session:', error);
-        alert('Failed to create session. Please try again.');
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to create session. Please try again.',
+          confirmButtonText: 'OK'
+        });
       }
     }
 
     function changePassword() {
-      auth.sendPasswordResetEmail(currentUser.email).then(() => alert('Reset email sent'));
+      auth.sendPasswordResetEmail(currentUser.email).then(() => {
+        Swal.fire({
+          icon: 'info',
+          title: 'Password Reset',
+          text: 'A password reset email has been sent.',
+          confirmButtonText: 'OK'
+        });
+      });
     }
 
     function editProfile() {
-      alert('Profile edit not implemented');
+      Swal.fire({
+        icon: 'info',
+        title: 'Feature Not Available',
+        text: 'Profile editing is not implemented yet.',
+        confirmButtonText: 'OK'
+      });
+    }
+
+    function toggleNavbar() {
+      const navItems = document.querySelector('nav .flex');
+      navItems.style.display = navItems.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    async function deleteAccount() {
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: 'Delete Account?',
+        text: 'This will permanently delete your account and all your data. This action cannot be undone.',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#e3342f',
+        cancelButtonColor: '#3085d6'
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        // Delete Firestore document
+        if (currentRole === 'therapist') {
+          await db.collection('therapists').doc(currentUser.uid).delete();
+        } else {
+          await db.collection('users').doc(currentUser.uid).delete();
+        }
+        // Delete Firebase Auth user
+        await currentUser.delete();
+        Swal.fire({
+          icon: 'success',
+          title: 'Account Deleted',
+          text: 'Your account has been deleted.',
+          confirmButtonText: 'OK'
+        });
+        showPage('page-home');
+      } catch (error) {
+        if (error.code === 'auth/requires-recent-login' || error.message.includes('CREDENTIAL_TOO_OLD_LOGIN_AGAIN')) {
+          // Prompt for password
+          const { value: password } = await Swal.fire({
+            title: 'Re-authenticate',
+            input: 'password',
+            inputLabel: 'Please enter your password to confirm account deletion:',
+            inputPlaceholder: 'Password',
+            inputAttributes: { autocapitalize: 'off', autocorrect: 'off' },
+            showCancelButton: true
+          });
+          if (!password) return;
+          const cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, password);
+          try {
+            await currentUser.reauthenticateWithCredential(cred);
+            return deleteAccount(); // Try again after re-auth
+          } catch (reauthError) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Re-authentication Failed',
+              text: reauthError.message,
+              confirmButtonText: 'OK'
+            });
+          }
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: error.message,
+            confirmButtonText: 'OK'
+          });
+        }
+      }
     }
 
     document.addEventListener('DOMContentLoaded', () => { showPage('page-home'); });
