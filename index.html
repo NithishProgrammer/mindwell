@@ -854,8 +854,14 @@
       if (!result.isConfirmed) return;
 
       try {
-        // Delete Firestore document
+        // If therapist, delete all their sessions
         if (currentRole === 'therapist') {
+          // Delete all sessions created by this therapist
+          const sessionsSnap = await db.collection('sessions').where('therapistId', '==', currentUser.uid).get();
+          const batch = db.batch();
+          sessionsSnap.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+          // Delete therapist document
           await db.collection('therapists').doc(currentUser.uid).delete();
         } else {
           await db.collection('users').doc(currentUser.uid).delete();
@@ -865,7 +871,7 @@
         Swal.fire({
           icon: 'success',
           title: 'Account Deleted',
-          text: 'Your account has been deleted.',
+          text: 'Your account and all your sessions have been deleted.',
           confirmButtonText: 'OK'
         });
         showPage('page-home');
